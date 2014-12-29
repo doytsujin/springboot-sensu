@@ -1,10 +1,9 @@
 #! /usr/bin/env ruby
 #
-#   uchiwa-health
+#   springboot-metrics
 #
 # DESCRIPTION:
 #   get metrics of of Spring Boot 1.2.x application using actuator endpoints
-
 #
 # OUTPUT:
 #   plain text
@@ -18,9 +17,19 @@
 #   gem: uri
 #
 # USAGE:
-#  #YELLOW
+#
+#   All metrics:
+#     springboot-metrics.rb --host=192.168.1.1 &
+#       --port=8081 &
+#       --username=admin --password=secret &
+#       --path=/metrics --counters --gauges
+#   Exclude counters and gauges:
+#     springboot-metrics.rb --host=192.168.1.1 &
+#       --port=8081 &
+#       --username=admin --password=secret --path=/metrics
 #
 # NOTES:
+#   Check with Spring Boot 1.2.0 actuator endpoints
 #
 # LICENSE:
 #   Copyright 2014 Victor Pechorin <dev@pechorina.net>
@@ -104,13 +113,15 @@ class SpringBootMetrics < Sensu::Plugin::Metric::CLI::Graphite
     begin
       res = Net::HTTP.start(url.host, url.port) do |http|
         req = Net::HTTP::Get.new(config[:path])
-        if (config[:username] && config[:password])
+        if config[:username] && config[:password]
           req.basic_auth(config[:username], config[:password])
         end
         http.request(req)
       end
-    rescue Timeout::Error, Errno::EINVAL, Errno::ECONNRESET, EOFError, Net::HTTPBadResponse,
-           Net::HTTPHeaderSyntaxError, Net::ProtocolError, Errno::ECONNREFUSED => e
+    rescue Timeout::Error, Errno::EINVAL, Errno::ECONNRESET,
+           EOFError, Net::HTTPBadResponse,
+           Net::HTTPHeaderSyntaxError, Net::ProtocolError,
+           Errno::ECONNREFUSED => e
       critical e
     end
 
@@ -118,13 +129,9 @@ class SpringBootMetrics < Sensu::Plugin::Metric::CLI::Graphite
       json = JSON.parse(res.body)
       json.each do |key, val|
         if key.to_s.match(/^counter\.(.+)/)
-          if (config[:counters])
-            output(config[:scheme] + '.' + key, val)
-          end
+          output(config[:scheme] + '.' + key, val) if config[:counters]
         elsif key.to_s.match(/^gauge\.(.+)/)
-          if (config[:gauges])
-            output(config[:scheme] + '.' + key, val)
-          end
+          output(config[:scheme] + '.' + key, val) if config[:gauges]
         else
           output(config[:scheme] + '.' + key, val)
         end
